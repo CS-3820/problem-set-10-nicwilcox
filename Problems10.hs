@@ -204,7 +204,35 @@ bubble; this won't *just* be `Throw` and `Catch.
 -------------------------------------------------------------------------------}
 
 smallStep :: (Expr, Expr) -> Maybe (Expr, Expr)
-smallStep = undefined
+smallStep (Const v, acc) = Nothing
+smallStep (Plus(Const i)(Const i2), acc) =  Just(Const(i+i2),acc)
+smallStep (Plus n1 n2, acc)
+  | isValue n1 = fmap (\(n2',acc') -> (Plus n1 n2',acc')) (smallStep(n2,acc))
+  | otherwise = fmap (\(n1', acc') -> (Plus n1' n2,acc')) (smallStep(n1,acc))
+smallStep(Store n,_) | isValue n = Just(Const 0,n)
+smallStep (Store e,acc) = fmap (\(e',acc') -> (Store e',acc')) (smallStep(e,acc))
+smallStep (Recall,acc) = Just(acc,acc)
+smallStep(Throw n, acc)
+  | isValue n = Just(Throw n, acc)
+  | otherwise = fmap (\(n',acc') -> (Throw n',acc')) (smallStep(n,acc))
+smallStep(Catch n y n2, acc)
+  | isValue n = Just(n, acc)
+  | otherwise = case smallStep (n, acc) of
+        Just (Throw w, acc') -> Just (subst y w n2, acc')
+        Just (n', acc') -> Just (Catch n' y n2 , acc')
+        Nothing -> Nothing
+  ---otherwise = fmap (\(n',acc') -> (Catch n' y n2,acc')) (smallStep(n,acc))
+smallStep(Var x, acc) = Nothing
+
+smallStep(App(Lam x n) m, acc)
+  | isValue n = Just(subst x m n, acc)
+  | otherwise = fmap (\(m',acc') -> (App(Lam x n) m',acc')) (smallStep(m,acc))
+smallStep(App n1 n2, acc)
+  | isValue n1 = case n1 of 
+      Throw w -> Just (Throw w, acc)
+      _ -> Nothing
+  | otherwise = fmap (\(n1',acc') -> (App n1' n2, acc')) (smallStep(n1,acc))
+
 
 steps :: (Expr, Expr) -> [(Expr, Expr)]
 steps s = case smallStep s of
